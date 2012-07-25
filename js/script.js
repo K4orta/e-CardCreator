@@ -1,5 +1,9 @@
 /* Author:
 	Erik Wong
+
+  Class.extend functionality built on John Resig's Simple JavaScript Inheritance snippet
+  http://ejohn.org/blog/simple-javascript-inheritance/
+  code included in js/class.js
 */
 
 var CardApp = Class.extend({
@@ -10,9 +14,13 @@ var CardApp = Class.extend({
   maxYRot:45,
   enable3D:true,
   activeSelection:null,
+  curBackground:null,
+  draggables:[],
   toolbar:[],
   toolbarStart:{x:60,y:0},
   menus:[],
+  curBackground:null,
+
   init: function(target){
     var that = this;
     this.container = target;
@@ -31,7 +39,7 @@ var CardApp = Class.extend({
     this.addToolButton(new ImageUIButton(this));
     var nc;
     this.addToolButton(new CardUIButton(this, 'comment', new MenuTip(this,"Add Text"))).button.click(function(){
-      new EditableText(that);
+      that.draggables.push(new EditableText(that));
     });
     this.addToolButton(new CardUIButton(this, 'mail-closed', new MenuTip(this, "Share")));
 
@@ -78,9 +86,12 @@ var CardApp = Class.extend({
     });
     return Btn;
   },
+  changeBackground: function(ImgUrl){
+    this.curBackground = 'url(images/backgrounds/'+ImgUrl+')';
+    this.container.find('.innerCard').css('background-image',this.curBackground);
+  },
   clearSelection: function(){
     this.activeSelection = null;
-    //console.log(this);
     $('.propBar').fadeOut();
     this.container.find('.activeSelection').removeClass('activeSelection');
   },
@@ -105,15 +116,19 @@ var CardApp = Class.extend({
     for (var i=0;i<this.menus.length; ++i) {
       cm=this.menus[i];
       if(cm.isOpen&&cm!=OpenOnClose){
-        foundOpen = true;
+          foundOpen = true;
           cm.close.apply(cm);
           OpenOnClose.open.apply(OpenOnClose);
         }
-      
     }
     if(!foundOpen){
       OpenOnClose.open.apply(OpenOnClose);
     }
+  },
+  save:function(){
+    var ret = {'backgroundImg:':this.curBackground};
+
+    return ret;
   }
 });
 
@@ -140,9 +155,6 @@ var DraggableElement = Class.extend({
     this.target.mouseup(function(){
       that.mouseUp.apply(that);
     });
-  },
-  update:function(){
-  
   },
   startDrag:function(){
     this.dragging = true;
@@ -178,7 +190,7 @@ var DraggableElement = Class.extend({
 
   },
   save:function(){
-    return {this.x,this.y};
+    return {'x':this.x, 'y':this.y };
   },
   kill:function(){
     this.target.remove();
@@ -191,12 +203,19 @@ var EditableText = DraggableElement.extend({
   textSize:3,
   lineHeight:1.5,
   textColor:0,
+  $text:null,
   init:function(Parent, StartText){
       this.curText = StartText || "Enter Text";
       this._super(Parent);
+      //this.$text = $('<h1 class="fancyTitle inactiveSelection">'+this.curText+'</h1>').appendTo(this.target);
+      //
+      
       this.target.append('<h1 class="fancyTitle inactiveSelection">'+this.curText+'</h1>');
-      this.target.find('h1').css({position:'absolute','margin':4});
+      this.$text = this.target.find('h1').last();
+      this.target.find('h1').css({position:'absolute','margin':4, 'font-family': 'sans-serif'});
       this.target.find('.fancyTitle').css('font-size', this.textSize+'em');
+
+      console.log(JSON.stringify(this.save()));
   },
   clickOnly:function(){
     //Start editing
@@ -274,7 +293,13 @@ var EditableText = DraggableElement.extend({
 
   },
   save:function(){
-    return "";
+    var ret = this._super();
+    ret.text = this.curText;
+    //TODO change textSize to be in px instead of em
+    ret.fontSize = this.$text.css('fontSize');
+    //this.$text.text('What What'); 
+    ret.fontFamily = this.$text.css('font-family');
+    return ret;
   }
 });
 
@@ -436,7 +461,7 @@ var BackgroundMenu = UISidebar.extend({
       $gamePanel.find('li').each(function(){
         $(this).click(function(){
           var bgUrl = $(this).find('img').attr('src').split('/');
-          that.parent.container.find('.innerCard').css('background-image','url(images/backgrounds/'+bgUrl[bgUrl.length-1]+')');
+          that.parent.changeBackground.apply(that.parent, [bgUrl[bgUrl.length-1]]);
         });
       });
       
