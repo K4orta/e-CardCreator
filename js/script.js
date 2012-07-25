@@ -71,8 +71,7 @@ var CardApp = Class.extend({
   addToolButton: function(Btn){
     this.toolbar.push(Btn);
     var nButton = this.toolbar[this.toolbar.length-1].button;
-    // There are sort of hacky, refactor so that they don't look strange in 2D fallback
-    console.log(this.container.width());
+    // These are sort of hacky, refactor so that they don't look strange in 2D fallback
     nButton.css({position:'absolute',
       left:this.toolbarStart.x + this.container.offset().left + (this.container.width()*.5), 
       top:this.toolbarStart.y+(this.toolbar.length-1) * (32+8),
@@ -82,6 +81,7 @@ var CardApp = Class.extend({
   clearSelection: function(){
     this.activeSelection = null;
     //console.log(this);
+    $('.propBar').fadeOut();
     this.container.find('.activeSelection').removeClass('activeSelection');
   },
   mouseHandler: function(event){
@@ -94,6 +94,7 @@ var CardApp = Class.extend({
   clickedChild:function(child){
     if(child.textColor!=undefined){
       this.activeSelection = child;
+      $('.propBar').fadeIn();
       child.target.find('h1').addClass('activeSelection');
     }
   },
@@ -103,16 +104,10 @@ var CardApp = Class.extend({
     var foundOpen = false;
     for (var i=0;i<this.menus.length; ++i) {
       cm=this.menus[i];
-      //console.log(cm.isOpen);
       if(cm.isOpen&&cm!=OpenOnClose){
         foundOpen = true;
-        //console.log('goo');
-        //cm.$menu.hide({direction:'right', duration:100,effect:'slide',callback:function(){
           cm.close.apply(cm);
           OpenOnClose.open.apply(OpenOnClose);
-          //if(OpenOnClose!=null){
-            //OpenOnClose.open.apply(OpenOnClose);
-          //}
         }
       
     }
@@ -147,7 +142,7 @@ var DraggableElement = Class.extend({
     });
   },
   update:function(){
-    
+  
   },
   startDrag:function(){
     this.dragging = true;
@@ -161,15 +156,12 @@ var DraggableElement = Class.extend({
 
   },
   mouseUp:function(){
-    //console.log(this);
-   // console.log(this);
     this.parent.clickedChild(this);
     if(this.dragging){
       this.dragging=false;
     }else{
       this.dragging=false;
       this.clickOnly.apply(this);
-      //console.log('Click Only');
     }
   }, // returns a JSON string that can be used to create a new version of this draggable 
   toJSON:function(){
@@ -185,11 +177,14 @@ var DraggableElement = Class.extend({
   loadFromJSON:function(JSONStr){
 
   },
+  save:function(){
+    return {this.x,this.y};
+  },
   kill:function(){
     this.target.remove();
   }
 });
-
+// important data to get out: x,y,font,fancy,text,size in px
 var EditableText = DraggableElement.extend({
   curText:"",
   editing:false,
@@ -200,11 +195,8 @@ var EditableText = DraggableElement.extend({
       this.curText = StartText || "Enter Text";
       this._super(Parent);
       this.target.append('<h1 class="fancyTitle inactiveSelection">'+this.curText+'</h1>');
-      this.target.find('h1').css('position','absolute');
+      this.target.find('h1').css({position:'absolute','margin':4});
       this.target.find('.fancyTitle').css('font-size', this.textSize+'em');
-      
-      //this.toJSON();
-
   },
   clickOnly:function(){
     //Start editing
@@ -224,16 +216,22 @@ var EditableText = DraggableElement.extend({
       });
       var nt = this.target.find('h1');
       nt.hide();
+      //nt.css('margin-left',4);
       // Add the text area
-      this.target.append('<textarea class="fancyTitle">'+this.curText.replace(/<br>/g, "\n") +'</textarea>');
+      this.target.append('<textarea>'+this.curText.replace(/<br>/g, "\n") +'</textarea>');
       var inputTarget =  this.target.find('textarea');
+      if(nt.hasClass('fancyTitle')){
+        inputTarget.addClass('fancyTitle');
+      }
+      //console.log(nt.css('font-size'));
+     inputTarget.css({'padding-top': parseInt(nt.css('font-size').replace(/px/,''))*.15});
       // Unused selection hook for text color changing
       inputTarget.select(function(dat){
         //var tn = that.getSelectedText();
         //console.log(tn.getRangeAt(0));
-      });
+      }); 
       inputTarget.focus()
-        .css('font-size', this.textSize+'em')
+        .css({'font-size':nt.css('font-size'),'font-family':nt.css('font-family')})
         .width(nt.width())
         .height(nt.height());
       inputTarget.blur(function(){
@@ -270,6 +268,13 @@ var EditableText = DraggableElement.extend({
     //inputTarget.width(nt.width()+16*this.textSize).height(nt.height()).scrollTop(0);
     inputTarget.animate({width:nt.width()+16*this.textSize, height:nt.height()},{duration:100});
     
+  },
+  loadFromJSON:function(){
+    this._super();
+
+  },
+  save:function(){
+    return "";
   }
 });
 
@@ -444,8 +449,42 @@ var TextToolBar = Class.extend({
   parent:null,
   init:function(Parent){
     this.parent = Parent;
-    $toolbar = $('<div class="propBar"></div>').prependTo(this.parent.container);
-    $toolbar.css({'-webkit-transform':'translateZ(-20px)', float:'left', position:'absolute', left:-($toolbar.width()+24)});
+    var that = this;
+
+    this.$toolbar = $('<div class="propBar"></div>').prependTo(this.parent.container);
+    $('.propBar').fadeOut();
+    this.$toolbar.css({'-webkit-transform':'translateZ(-20px)', float:'left', position:'absolute', left:-(this.$toolbar.width()+24)});
+    
+    $(this.$toolbar).append('Text Size:');
+    $('<button class="">-</button>').appendTo(this.$toolbar).css({'-webkit-transform':'translateZ(20px)'}).click(function(){
+      if(that.parent.activeSelection!=null){
+        var $textEl = that.parent.activeSelection.target.find('h1');
+        $textEl.animate({'font-size':(parseInt($textEl.css('font-size').replace(/px/i,''))-4)+'px'},{duration:120,queue:true});
+      }
+    });
+    $('<button class="">+</button>').appendTo(this.$toolbar).css({'-webkit-transform':'translateZ(20px)'}).click(function(){
+      if(that.parent.activeSelection!=null){
+        var $textEl = that.parent.activeSelection.target.find('h1');
+        //$textEl.css('font-size', );
+        $textEl.animate({'font-size':(parseInt($textEl.css('font-size').replace(/px/i,''))+4)+'px'},{duration:120,queue:true});
+      }
+    });
+    $(this.$toolbar).append('Font:');
+    $('<select><option value="GillSans, Calibri, Trebuchet, sans-serif">GillSans</option><option value="Impact, Haettenschweiler, Arial Narrow Bold, sans-serif">Impact</option><option value="Palatino, Palatino Linotype, Georgia, Times, Times New Roman, serif">Palatino  </option></select>').appendTo(this.$toolbar).css({'-webkit-transform':'translateZ(20px)'}).change(function(){
+       if(that.parent.activeSelection!=null){
+          var $textEl = that.parent.activeSelection.target.find('h1');
+          $textEl.css('font-family', $(this).val());
+        }
+    });
+    $(this.$toolbar).append('Fancy Text:');
+    $('<input type="checkbox" checked="checked">').appendTo(this.$toolbar).css({'-webkit-transform':'translateZ(20px)'}).change(function(){
+      if($(this).prop("checked")){
+        that.parent.activeSelection.target.find('h1').addClass('fancyTitle');
+      }else{
+        that.parent.activeSelection.target.find('h1').removeClass('fancyTitle');
+      }
+    });
+
   }
 });
 
