@@ -4,6 +4,8 @@
   Class.extend functionality built on John Resig's Simple JavaScript Inheritance snippet
   http://ejohn.org/blog/simple-javascript-inheritance/
   code included in js/class.js
+
+  also John Crockford's JS JSON library 
 */
 
 var CardApp = Class.extend({
@@ -21,8 +23,9 @@ var CardApp = Class.extend({
   menus:[],
   curBackground:null,
 
-  init: function(target){
+  init: function(target, ViewMode){
     var that = this;
+    var viewMode = ViewMode || "edit";
     this.container = target;
     $('body').css('-webkit-perspective' ,1500); 
     $(window).mousemove(function(event){
@@ -32,17 +35,25 @@ var CardApp = Class.extend({
     this.container.find('.innerCard').css('-webkit-transform', 'translateZ(10px)').click(function(){
       that.clearSelection.apply(that);
     });
-    //UI and toolbars
+    setInterval(function(){that.update()}, 1000/this.fps);
 
-    setInterval(function(){that.update()}, 1000/30);
+    //UI and toolbars
+    if(viewMode == "edit"){
+      this.startEditMode();
+    }
+  },
+  startEditMode:function(){
+    var that=this;
     this.addToolButton(new CardUIButton(this, 'calculator', new MenuTip(this,"Premade Cards")));
     this.addToolButton(new ImageUIButton(this));
-    var nc;
+    
     this.addToolButton(new CardUIButton(this, 'comment', new MenuTip(this,"Add Text"))).button.click(function(){
       that.draggables.push(new EditableText(that));
     });
+    this.addToolButton(new CardUIButton(this, 'disk', new MenuTip(this, "Save"))).button.click(function(){
+      console.log(JSON.stringify(that.save()));
+    });
     this.addToolButton(new CardUIButton(this, 'mail-closed', new MenuTip(this, "Share")));
-
     new TextToolBar(this);
 
     $(document).keydown(function(event){
@@ -53,8 +64,6 @@ var CardApp = Class.extend({
         $(this).css('left',$(window).width()-$(this).width());
       });
     });
-
-    //tn.toJSON();
   },
   update: function(){
     if(this.enable3D){
@@ -100,7 +109,8 @@ var CardApp = Class.extend({
     this.mouseY = event.pageY;
   },
   mouseDistFromCenter: function(){
-    return this.mouseX - (this.container.offset().left + this.container.width() /2);
+    var my = this.mouseY - (this.container.offset().top + this.container.height() *.5)
+    return this.mouseX - (this.container.offset().left + this.container.width() *.5);
   },
   clickedChild:function(child){
     if(child.textColor!=undefined){
@@ -126,8 +136,10 @@ var CardApp = Class.extend({
     }
   },
   save:function(){
-    var ret = {'backgroundImg:':this.curBackground};
-
+    var ret = {'backgroundImg:':this.curBackground, 'textObjects': []};
+    for (var i = 0; i < this.draggables.length; i++) {
+      ret.textObjects.push(this.draggables[i].save());
+    }
     return ret;
   }
 });
@@ -190,7 +202,7 @@ var DraggableElement = Class.extend({
 
   },
   save:function(){
-    return {'x':this.x, 'y':this.y };
+    return {'x':Math.round(this.x), 'y':Math.round(this.y) };
   },
   kill:function(){
     this.target.remove();
@@ -214,11 +226,10 @@ var EditableText = DraggableElement.extend({
       this.$text = this.target.find('h1').last();
       this.target.find('h1').css({position:'absolute','margin':4, 'font-family': 'sans-serif'});
       this.target.find('.fancyTitle').css('font-size', this.textSize+'em');
-
-      console.log(JSON.stringify(this.save()));
   },
   clickOnly:function(){
     //Start editing
+    //TODO delete text object if empty string
     if(!this.editing){
 
       this.editing = true;
@@ -256,6 +267,7 @@ var EditableText = DraggableElement.extend({
       inputTarget.blur(function(){
         that.curText = that.target.find('textarea').val().replace(/\n/g, "<br>");
         inputTarget.remove();
+        //TODO replace HTML tags that are not <br> tags 
         that.target.find('h1').html(that.curText).show();
         // Unbind above hack
         that.target.unbind('keypress');
@@ -297,8 +309,8 @@ var EditableText = DraggableElement.extend({
     ret.text = this.curText;
     //TODO change textSize to be in px instead of em
     ret.fontSize = this.$text.css('fontSize');
-    //this.$text.text('What What'); 
     ret.fontFamily = this.$text.css('font-family');
+    ret.isFancy = this.$text.hasClass('fancyTitle');
     return ret;
   }
 });
@@ -366,8 +378,6 @@ var CardUIButton = Class.extend({
 var ImageUIButton = CardUIButton.extend({
   init:function(Parent){
     this._super(Parent, 'image');
-    //this.menu = 
-    //this.parent.registerMenu(this.menu);
     this.addMenu(new BackgroundMenu(Parent));
   }
 });
@@ -490,7 +500,6 @@ var TextToolBar = Class.extend({
     $('<button class="">+</button>').appendTo(this.$toolbar).css({'-webkit-transform':'translateZ(20px)'}).click(function(){
       if(that.parent.activeSelection!=null){
         var $textEl = that.parent.activeSelection.target.find('h1');
-        //$textEl.css('font-size', );
         $textEl.animate({'font-size':(parseInt($textEl.css('font-size').replace(/px/i,''))+4)+'px'},{duration:120,queue:true});
       }
     });
